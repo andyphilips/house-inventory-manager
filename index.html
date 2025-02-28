@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Home Inventory Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #5D5CDE;
+            --primary-dark: #4a49b7;
+            --light-bg: #FFFFFF;
+            --light-text: #333333;
+            --dark-bg: #181818;
+            --dark-text: #F0F0F0;
+            --light-card: #F9F9F9;
+            --dark-card: #252525;
+            --light-border: #E5E5E5;
+            --dark-border: #3A3A3A;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .theme-bg {
+                background-color: var(--dark-bg);
+                color: var(--dark-text);
+            }
+            .theme-card {
+                background-color: var(--dark-card);
+                color: var(--dark-text);
+                border-color: var(--dark-border);
+            }
+            .theme-border {
+                border-color: var(--dark-border);
+            }
+            .theme-input {
+                background-color: var(--dark-card);
+                color: var(--dark-text);
+                border-color: var(--dark-border);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .theme-bg {
+                background-color: var(--light-bg);
+                color: var(--light-text);
+            }
+            .theme-card {
+                background-color: var(--light-card);
+                color: var(--light-text);
+                border-color: var(--light-border);
+            }
+            .theme-border {
+                border-color: var(--light-border);
+            }
+            .theme-input {
+                background-color: var(--light-bg);
+                color: var(--light-text);
+                border-color: var(--light-border);
+            }
+        }
+        
+        .primary-button {
+            background-color: var(--primary-color);
+            color: white;
+            transition: background-color 0.2s;
+        }
+        
+        .primary-button:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .room-item.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .tab-button.active {
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+        
+        .image-preview {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 0.25rem;
+        }
+        
+        .custom-file-upload {
+            border: 1px dashed;
+            display: inline-block;
+            padding: 6px 12px;
+            cursor: pointer;
+            text-align: center;
+            width: 100%;
+            border-radius: 0.25rem;
+        }
+        
+        .item-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 0.25rem;
+        }
+        
+        .room-image {
+            width: 120px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 0.25rem;
+        }
+
+        /* Loading indicator for images */
+        .image-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.25rem;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #ffffff;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Mobile sidebar */
+        @media (max-width: 768px) {
+            .mobile-sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100%;
+                width: 80%;
+                z-index: 40;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease-in-out;
+            }
+            
+            .mobile-sidebar.open {
+                transform: translateX(0);
+            }
+            
+            .sidebar-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 30;
+                display: none;
+            }
+            
+            .sidebar-overlay.open {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body class="theme-bg min-h-screen">
+    <div class="flex flex-col h-screen">
+        <!-- Header -->
+        <header class="p-4 border-b theme-border flex justify-between items-center">
+            <div class="flex items-center">
+                <button id="menuToggle" class="md:hidden mr-2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+                <h1 class="text-xl font-bold">Home Inventory</h1>
+            </div>
+            <div>
+                <button id="exportDataBtn" class="border border-gray-300 dark:border-gray-600 px-3 py-1 rounded text-sm">Export</button>
+                <button id="importDataBtn" class="primary-button px-3 py-1 rounded text-sm ml-2">Import</button>
+                <input type="file" id="importFileInput" class="hidden" accept=".json">
+            </div>
+        </header>
+        
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Sidebar overlay (mobile) -->
+            <div id="sidebarOverlay" class="sidebar-overlay"></div>
+            
+            <!-- Sidebar -->
+            <aside id="sidebar" class="mobile-sidebar md:relative md:transform-none border-r theme-border theme-bg w-64 p-4 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">Rooms</h2>
+                    <button id="addRoomBtn" class="primary-button p-1 rounded">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <div id="roomsContainer" class="overflow-y-auto flex-1 space-y-2">
+                    <!-- Rooms will be dynamically inserted here -->
+                    <div class="flex items-center justify-center h-32 text-gray-500">
+                        <p>No rooms added yet.</p>
+                    </div>
+                </div>
+            </aside>
+            
+            <!-- Main content -->
+            <main class="flex-1 overflow-hidden flex flex-col">
+                <div id="noRoomSelected" class="flex-1 flex items-center justify-center">
+                    <div class="text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        <h2 class="text-xl font-semibold mb-2">Welcome to your Home Inventory</h2>
+                        <p class="mb-4">Select a room or add a new one to get started.</p>
+                        <button id="welcomeAddRoomBtn" class="primary-button px-4 py-2 rounded">Add Your First Room</button>
+                    </div>
+                </div>
+                
+                <div id="roomContent" class="hidden flex-1 flex flex-col overflow-hidden">
+                    <!-- Room header -->
+                    <div class="p-4 border-b theme-border flex flex-wrap justify-between items-center">
+                        <div class="flex items-center">
+                            <div id="roomImageContainer" class="mr-4 hidden">
+                                <img id="roomImage" src="" alt="Room" class="room-image">
+                            </div>
+                            <h2 id="roomTitle" class="text-xl font-bold">Room Name</h2>
+                        </div>
+                        <div class="flex space-x-2 mt-2 sm:mt-0">
+                            <button id="editRoomBtn" class="border border-gray-300 dark:border-gray-600 px-3 py-1 rounded text-sm">Edit Room</button>
+                            <button id="deleteRoomBtn" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">Delete</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Tab navigation -->
+                    <div class="flex border-b theme-border overflow-x-auto">
+                        <button data-tab="items" class="tab-button flex-1 p-3 font-medium text-center active">Items</button>
+                        <button data-tab="tasks" class="tab-button flex-1 p-3 font-medium text-center">Tasks</button>
+                        <button data-tab="notes" class="tab-button flex-1 p-3 font-medium text-center">Notes</button>
+                    </div>
+                    
+                    <!-- Tab content areas -->
+                    <div class="flex-1 overflow-auto p-4">
+                        <!-- Items Tab -->
+                        <div id="itemsTab" class="tab-content">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold">Items in this room</h3>
+                                <button id="addItemBtn" class="primary-button px-3 py-1 rounded">Add Item</button>
+                            </div>
+                            <div id="itemsList" class="space-y-2">
+                                <!-- Items will be added here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Tasks Tab -->
+                        <div id="tasksTab" class="tab-content hidden">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold">Tasks for this room</h3>
+                                <button id="addTaskBtn" class="primary-button px-3 py-1 rounded">Add Task</button>
+                            </div>
+                            <div id="tasksList" class="space-y-2">
+                                <!-- Tasks will be added here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Notes Tab -->
+                        <div id="notesTab" class="tab-content hidden">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold">Notes for this room</h3>
+                                <button id="addNoteBtn" class="primary-button px-3 py-1 rounded">Add Note</button>
+                            </div>
+                            <div id="notesList" class="space-y-2">
+                                <!-- Notes will be added here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Add/Edit Room Modal -->
+    <div id="roomModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md theme-card">
+            <h3 id="roomModalTitle" class="text-lg font-semibold mb-4">Add New Room</h3>
+            <form id="roomForm">
+                <div class="mb-4">
+                    <label for="roomName" class="block mb-1 font-medium">Room Name</label>
+                    <input type="text" id="roomName" class="theme-input border rounded w-full p-2 text-base" required>
+                </div>
+                <div class="mb-4">
+                    <label for="roomDescription" class="block mb-1 font-medium">Description (optional)</label>
+                    <textarea id="roomDescription" class="theme-input border rounded w-full p-2 text-base" rows="3"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block mb-1 font-medium">Room Photo (optional)</label>
+                    <div id="roomPhotoPreviewContainer" class="mb-2 hidden relative">
+                        <img id="roomPhotoPreview" src="" alt="Room Preview" class="image-preview mb-2">
+                        <div id="roomPhotoLoading" class="image-loading hidden">
+                            <div class="spinner"></div>
+                        </div>
+                        <button type="button" id="removeRoomPhotoBtn" class="text-red-500 text-sm">Remove photo</button>
+                    </div>
+                    <label for="roomPhoto" class="custom-file-upload theme-border">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Click to upload photo
+                    </label>
+                    <input type="file" id="roomPhoto" class="hidden" accept="image/jpeg, image/png, image/gif, image/webp">
+                    <div class="text-xs text-gray-500 mt-1">Supported formats: JPEG, PNG, GIF, WebP</div>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancelRoomBtn" class="border border-gray-300 dark:border-gray-600 px-4 py-2 rounded">Cancel</button>
+                    <button type="submit" id="saveRoomBtn" class="primary-button px-4 py-2 rounded">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Item Modal -->
+    <div id="itemModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md theme-card">
+            <h3 id="itemModalTitle" class="text-lg font-semibold mb-4">Add New Item</h3>
+            <form id="itemForm">
+                <div class="mb-4">
+                    <label for="itemName" class="block mb-1 font-medium">Item Name</label>
+                    <input type="text" id="itemName" class="theme-input border rounded w-full p-2 text-base" required>
+                </div>
+                <div class="mb-4">
+                    <label for="itemDescription" class="block mb-1 font-medium">Description (optional)</label>
+                    <textarea id="itemDescription" class="theme-input border rounded w-full p-2 text-base" rows="2"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="itemPrice" class="block mb-1 font-medium">Price (optional)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-2">$</span>
+                        <input type="number" id="itemPrice" class="theme-input border rounded w-full p-2 pl-6 text-base" min="0" step="0.01">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label for="itemPurchaseDate" class="block mb-1 font-medium">Purchase Date (optional)</label>
+                    <input type="date" id="itemPurchaseDate" class="theme-input border rounded w-full p-2 text-base">
+                </div>
+                <div class="mb-4">
+                    <label class="block mb-1 font-medium">Item Photo (optional)</label>
+                    <div id="itemPhotoPreviewContainer" class="mb-2 hidden relative">
+                        <img id="itemPhotoPreview" src="" alt="Item Preview" class="image-preview mb-2">
+                        <div id="itemPhotoLoading" class="image-loading hidden">
+                            <div class="spinner"></div>
+                        </div>
+                        <button type="button" id="removeItemPhotoBtn" class="text-red-500 text-sm">Remove photo</button>
+                    </div>
+                    <label for="itemPhoto" class="custom-file-upload theme-border">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Click to upload photo
+                    </label>
+                    <input type="file" id="itemPhoto" class="hidden" accept="image/jpeg, image/png, image/gif, image/webp">
+                    <div class="text-xs text-gray-500 mt-1">Supported formats: JPEG, PNG, GIF, WebP</div>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancelItemBtn" class="border border-gray-300 dark:border-gray-600 px-4 py-2 rounded">Cancel</button>
+                    <button type="submit" id="saveItemBtn" class="primary-button px-4 py-2 rounded">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Task Modal -->
+    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md theme-card">
+            <h3 id="taskModalTitle" class="text-lg font-semibold mb-4">Add New Task</h3>
+            <form id="taskForm">
+                <div class="mb-4">
+                    <label for="taskName" class="block mb-1 font-medium">Task Name</label>
+                    <input type="text" id="taskName" class="theme-input border rounded w-full p-2 text-base" required>
+                </div>
+                <div class="mb-4">
+                    <label for="taskDescription" class="block mb-1 font-medium">Description (optional)</label>
+                    <textarea id="taskDescription" class="theme-input border rounded w-full p-2 text-base" rows="2"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="taskDueDate" class="block mb-1 font-medium">Due Date (optional)</label>
+                    <input type="date" id="taskDueDate" class="theme-input border rounded w-full p-2 text-base">
+                </div>
+                <div class="mb-4">
+                    <label for="taskPriority" class="block mb-1 font-medium">Priority</label>
+                    <select id="taskPriority" class="theme-input border rounded w-full p-2 text-base">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="taskCompleted" class="mr-2">
+                        <label for="taskCompleted" class="font-medium">Mark as completed</label>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancelTaskBtn" class="border border-gray-300 dark:border-gray-600 px-4 py-2 rounded">Cancel</button>
+                    <button type="submit" id="saveTaskBtn" class="primary-button px-4 py-2 rounded">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Note Modal -->
+    <div id="noteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md theme-card">
+            <h3 id="noteModalTitle" class="text-lg font-semibold mb-4">Add New Note</h3>
+            <form id="noteForm">
+                <div class="mb-4">
+                    <label for="noteTitle" class="block mb-1 font-medium">Title</label>
+                    <input type="text" id="noteTitle" class="theme-input border rounded w-full p-2 text-base" required>
+                </div>
+                <div class="mb-4">
+                    <label for="noteContent" class="block mb-1 font-medium">Content</label>
+                    <textarea id="noteContent" class="theme-input border rounded w-full p-2 text-base" rows="6" required></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="noteColor" class="block mb-1 font-medium">Color (optional)</label>
+                    <select id="noteColor" class="theme-input border rounded w-full p-2 text-base">
+                        <option value="default">Default</option>
+                        <option value="blue">Blue</option>
+                        <option value="green">Green</option>
+                        <option value="yellow">Yellow</option>
+                        <option value="red">Red</option>
+                        <option value="purple">Purple</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancelNoteBtn" class="border border-gray-300 dark:border-gray-600 px-4 py-2 rounded">Cancel</button>
+                    <button type="submit" id="saveNoteBtn" class="primary-button px-4 py-2 rounded">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- View Image Modal -->
+    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-90 hidden flex items-center justify-center z-50">
+        <div class="max-w-4xl max-h-[90vh]">
+            <img id="largeImage" src="" alt="Large Preview" class="max-w-full max-h-[85vh] object-contain">
+            <button id="closeImageBtn" class="absolute top-4 right-4 bg-white bg-opacity-25 p-2 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md theme-card">
+            <h3 class="text-lg font-semibold mb-4">Confirmation</h3>
+            <p id="confirmationMessage" class="mb-4">Are you sure you want to proceed?</p>
+            <div class="flex justify-end space-x-2">
+                <button id="cancelConfirmationBtn" class="border border-gray-300 dark:border-gray-600 px-4 py-2 rounded">Cancel</button>
+                <button id="confirmBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status toast -->
+    <div id="statusToast" class="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg hidden"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Simple database using localStorage
+            const db = {
+                // Initialize the database
+                init: function() {
+                    if (!localStorage.getItem('homeInventory_rooms')) {
+                        localStorage.setItem('homeInventory_rooms', JSON.stringify([]));
+                    }
+                    if (!localStorage.getItem('homeInventory_items')) {
+                        localStorage.setItem('homeInventory_items', JSON.stringify([]));
+                    }
+                    if (!localStorage.getItem('homeInventory_tasks')) {
+                        localStorage.setItem('homeInventory_tasks', JSON.stringify([]));
+                    }
+                    if (!localStorage.getItem('homeInventory_notes')) {
+                        localStorage.setItem('homeInventory_notes', JSON.stringify([]));
+                    }
+                },
+                
+                // Room operations
+                getRooms: function() {
+                    return JSON.parse(localStorage.getItem('homeInventory_rooms') || '[]');
+                },
+                
+                saveRoom: function(room) {
+                    const rooms = this.getRooms();
+                    const index = rooms.findIndex(r => r.id === room.id);
+                    
+                    if (index >= 0) {
+                        rooms[index] = room;
+                    } else {
+                        rooms.push(room);
+                    }
+                    
+                    localStorage.setItem('homeInventory_rooms', JSON.stringify(rooms));
+                    return room;
+                },
+                
+                deleteRoom: function(roomId) {
+                    // Delete room
+                    const rooms = this.getRooms();
+                    const updatedRooms = rooms.filter(room => room.id !== roomId);
+                    localStorage.setItem('homeInventory_rooms', JSON.stringify(updatedRooms));
+                    
+                    // Delete related items
+                    const items = this.getItems();
+                    const updatedItems = items.filter(item => item.roomId !== roomId);
+                    localStorage.setItem('homeInventory_items', JSON.stringify(updatedItems));
+                    
+                    // Delete related tasks
+                    const tasks = this.getTasks();
+                    const updatedTasks = tasks.filter(task => task.roomId !== roomId);
+                    localStorage.setItem('homeInventory_tasks', JSON.stringify(updatedTasks));
+                    
+                    // Delete related notes
+                    const notes = this.getNotes();
+                    const updatedNotes = notes.filter(note => note.roomId !== roomId);
+                    localStorage.setItem('homeInventory_notes', JSON.stringify(updatedNotes));
+                },
+                
+                // Item operations
+                getItems: function() {
+                    return JSON.parse(localStorage.getItem('homeInventory_items') || '[]');
+                },
+                
+                getItemsByRoom: function(roomId) {
+                    const items = this.getItems();
+                    return items.filter(item => item.roomId === roomId);
+                },
+                
+                saveItem: function(item) {
+                    const items = this.getItems();
+                    const index = items.findIndex(i => i.id === item.id);
+                    
+                    if (index >= 0) {
+                        items[index] = item;
+                    } else {
+                        items.push(item);
+                    }
+                    
+                    localStorage.setItem('homeInventory_items', JSON.stringify(items));
+                    return item;
+                },
+                
+                deleteItem: function(itemId) {
+                    const items = this.getItems();
+                    const updatedItems = items.filter(item => item.id !== itemId);
+                    localStorage.setItem('homeInventory_items', JSON.stringify(updatedItems));
+                },
+                
+                // Task operations
+                getTasks: function() {
+                    return JSON.parse(localStorage.getItem('homeInventory_tasks') || '[]');
+                },
+                
+                getTasksByRoom: function(roomId) {
+                    const tasks = this.getTasks();
+                    return tasks.filter(task => task.roomId === roomId);
+                },
+                
+                saveTask: function(task) {
+                    const tasks = this.getTasks();
+                    const index = tasks.findIndex(t => t.id === task.id);
+                    
+                    if (index >= 0) {
+                        tasks[index] = task;
+                    } else {
+                        tasks.push(task);
+                    }
+                    
+                    localStorage.setItem('homeInventory_tasks', JSON.stringify(tasks));
+                    return task;
+                },
+                
+                deleteTask: function(taskId) {
+                    const tasks = this.getTasks();
+                    const updatedTasks = tasks.filter(task => task.id !== taskId);
+                    localStorage.setItem('homeInventory_tasks', JSON.stringify(updatedTasks));
+                },
+                
+                // Note operations
+                getNotes: function() {
+                    return JSON.parse(localStorage.getItem('homeInventory_notes') || '[]');
+                },
+                
+                getNotesByRoom: function(roomId) {
+                    const notes = this.getNotes();
+                    return notes.filter(note => note.roomId === roomId);
+                },
+                
+                saveNote: function(note) {
+                    const notes = this.getNotes();
+                    const index = notes.findIndex(n => n.id === note.id);
+                    
+                    if (index >= 0) {
+                        notes[index] = note;
+                    } else {
+                        notes.push(note);
+                    }
+                    
+                    localStorage.setItem('homeInventory_notes', JSON.stringify(notes));
+                    return note;
+                },
+                
+                deleteNote: function(noteId) {
+                    const notes = this.getNotes();
+                    const updatedNotes = notes.filter(note => note.id !== noteId);
+                    localStorage.setItem('homeInventory_notes', JSON.stringify(updatedNotes));
+                },
+                
+                // Export/Import
+                exportData: function() {
+                    const data = {
+                        rooms: this.getRooms(),
+                        items: this.getItems(),
+                        tasks: this.getTasks(),
+                        notes: this.getNotes(),
+                        exportDate: new Date().toISOString()
+                    };
+                    
+                    return JSON.stringify(data, null, 2);
+                },
+                
+                importData: function(jsonString) {
+                    try {
+                        const data = JSON.parse(jsonString);
+                        
+                        // Validate the data
+                        if (!data.rooms || !Array.isArray(data.rooms)) {
+                            throw new Error('Invalid import data: Missing rooms array');
+                        }
+                        if (!data.items || !Array.isArray(data.items)) {
+                            throw new Error('Invalid import data: Missing items array');
+                        }
+                        if (!data.tasks || !Array.isArray(data.tasks)) {
+                            throw new Error('Invalid import data: Missing tasks array');
+                        }
+                        
+                        // Import the data
+                        localStorage.setItem('homeInventory_rooms', JSON.stringify(data.rooms));
+                        localStorage.setItem('homeInventory_items', JSON.stringify(data.items));
+                        localStorage.setItem('homeInventory_tasks', JSON.stringify(data.tasks));
+                        
+                        // Import notes if available (for backward compatibility)
+                        if (data.notes && Array.isArray(data.notes)) {
+                            localStorage.setItem('homeInventory_notes', JSON.stringify(data.notes));
+                        } else {
+                            localStorage.setItem('homeInventory_notes', JSON.stringify([]));
+                        }
+                        
+                        return true;
+                    } catch (error) {
+                        console.error('Import error:', error);
+                        throw error;
+                    }
+                }
+            };
+            
+            // Initialize database
+            db.init();
+            
+            // DOM elements
+            const elements = {
+                // Sidebar
+                sidebar: document.getElementById('sidebar'),
+                sidebarOverlay: document.getElementById('sidebarOverlay'),
+                menuToggle: document.getElementById('menuToggle'),
+                roomsContainer: document.getElementById('roomsContainer'),
+                
+                // Main content
+                noRoomSelected: document.getElementById('noRoomSelected'),
+                roomContent: document.getElementById('roomContent'),
+                roomTitle: document.getElementById('roomTitle'),
+                roomImage: document.getElementById('roomImage'),
+                roomImageContainer: document.getElementById('roomImageContainer'),
+                
+                // Tab buttons
+                tabButtons: document.querySelectorAll('[data-tab]'),
+                itemsTab: document.getElementById('itemsTab'),
+                tasksTab: document.getElementById('tasksTab'),
+                notesTab: document.getElementById('notesTab'),
+                
+                // Lists
+                itemsList: document.getElementById('itemsList'),
+                tasksList: document.getElementById('tasksList'),
+                notesList: document.getElementById('notesList'),
+                
+                // Room buttons
+                addRoomBtn: document.getElementById('addRoomBtn'),
+                welcomeAddRoomBtn: document.getElementById('welcomeAddRoomBtn'),
+                editRoomBtn: document.getElementById('editRoomBtn'),
+                deleteRoomBtn: document.getElementById('deleteRoomBtn'),
+                
+                // Action buttons
+                addItemBtn: document.getElementById('addItemBtn'),
+                addTaskBtn: document.getElementById('addTaskBtn'),
+                addNoteBtn: document.getElementById('addNoteBtn'),
+                
+                // Room Modal
+                roomModal: document.getElementById('roomModal'),
+                roomModalTitle: document.getElementById('roomModalTitle'),
+                roomForm: document.getElementById('roomForm'),
+                roomName: document.getElementById('roomName'),
+                roomDescription: document.getElementById('roomDescription'),
+                roomPhoto: document.getElementById('roomPhoto'),
+                roomPhotoPreview: document.getElementById('roomPhotoPreview'),
+                roomPhotoPreviewContainer: document.getElementById('roomPhotoPreviewContainer'),
+                roomPhotoLoading: document.getElementById('roomPhotoLoading'),
+                removeRoomPhotoBtn: document.getElementById('removeRoomPhotoBtn'),
+                saveRoomBtn: document.getElementById('saveRoomBtn'),
+                cancelRoomBtn: document.getElementById('cancelRoomBtn'),
+                
+                // Item Modal
+                itemModal: document.getElementById('itemModal'),
+                itemModalTitle: document.getElementById('itemModalTitle'),
+                itemForm: document.getElementById('itemForm'),
+                itemName: document.getElementById('itemName'),
+                itemDescription: document.getElementById('itemDescription'),
+                itemPrice: document.getElementById('itemPrice'),
+                itemPurchaseDate: document.getElementById('itemPurchaseDate'),
+                itemPhoto: document.getElementById('itemPhoto'),
+                itemPhotoPreview: document.getElementById('itemPhotoPreview'),
+                itemPhotoPreviewContainer: document.getElementById('itemPhotoPreviewContainer'),
+                itemPhotoLoading: document.getElementById('itemPhotoLoading'),
+                removeItemPhotoBtn: document.getElementById('removeItemPhotoBtn'),
+                saveItemBtn: document.getElementById('saveItemBtn'),
+                cancelItemBtn: document.getElementById('cancelItemBtn'),
+                
+                // Task Modal
+                taskModal: document.getElementById('taskModal'),
+                taskModalTitle: document.getElementById('taskModalTitle'),
+                taskForm: document.getElementById('taskForm'),
+                taskName: document.getElementById('taskName'),
+                taskDescription: document.getElementById('taskDescription'),
+                taskDueDate: document.getElementById('taskDueDate'),
+                taskPriority: document.getElementById('taskPriority'),
+                taskCompleted: document.getElementById('taskCompleted'),
+                saveTaskBtn: document.getElementById('saveTaskBtn'),
+                cancelTaskBtn: document.getElementById('cancelTaskBtn'),
+                
+                // Note Modal
+                noteModal: document.getElementById('noteModal'),
+                noteModalTitle: document.getElementById('noteModalTitle'),
+                noteForm: document.getElementById('noteForm'),
+                noteTitle: document.getElementById('noteTitle'),
+                noteContent: document.getElementById('noteContent'),
+                noteColor: document.getElementById('noteColor'),
+                saveNoteBtn: document.getElementById('saveNoteBtn'),
+                cancelNoteBtn: document.getElementById('cancelNoteBtn'),
+                
+                // Image Modal
+                imageModal: document.getElementById('imageModal'),
+                largeImage: document.getElementById('largeImage'),
+                closeImageBtn: document.getElementById('closeImageBtn'),
+                
+                // Confirmation Modal
+                confirmationModal: document.getElementById('confirmationModal'),
+                confirmationMessage: document.getElementById('confirmationMessage'),
+                cancelConfirmationBtn: document.getElementById('cancelConfirmationBtn'),
+                confirmBtn: document.getElementById('confirmBtn'),
+                
+                // Status toast
+                statusToast: document.getElementById('statusToast'),
+                
+                // Import/Export
+                exportDataBtn: document.getElementById('exportDataBtn'),
+                importDataBtn: document.getElementById('importDataBtn'),
+                importFileInput: document.getElementById('importFileInput')
+            };
+
+            // App state
+            let state = {
+                currentRoomId: null,
+                currentItemId: null,
+                currentTaskId: null,
+                currentNoteId: null,
+                editMode: false,
+                confirmCallback: null,
+                roomPhotoData: null,
+                itemPhotoData: null
+            };
+
+            // Utility functions
+            const utils = {
+                generateId: () => Date.now().toString(36) + Math.random().toString(36).substring(2),
+                
+                formatPrice: price => {
+                    if (!price) return 'N/A';
+                    return `$${parseFloat(price).toFixed(2)}`;
+                },
+                
+                formatDate: date => {
+                    if (!date) return 'N/A';
+                    return new Date(date).toLocaleDateString();
+                },
+                
+                formatDateTime: date => {
+                    if (!date) return 'N/A';
+                    return new Date(date).toLocaleString();
+                },
+                
+                showElement: element => {
+                    if (element) element.classList.remove('hidden');
+                },
+                
+                hideElement: element => {
+                    if (element) element.classList.add('hidden');
+                },
+                
+                clearElement: element => {
+                    if (element) element.innerHTML = '';
+                },
+                
+                readFileAsDataURL: (file) => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            resolve(e.target.result);
+                        };
+                        reader.onerror = (e) => {
+                            console.error("FileReader error", e);
+                            reject(new Error("Failed to read file"));
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                },
+                
+                showConfirmation: (message, callback) => {
+                    elements.confirmationMessage.textContent = message;
+                    state.confirmCallback = callback;
+                    utils.showElement(elements.confirmationModal);
+                },
+                
+                showToast: (message, isError = false) => {
+                    const toast = elements.statusToast;
+                    toast.textContent = message;
+                    toast.className = isError 
+                        ? 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg' 
+                        : 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg';
+                    
+                    utils.showElement(toast);
+                    
+                    // Hide after 3 seconds
+                    setTimeout(() => {
+                        utils.hideElement(toast);
+                    }, 3000);
+                },
+                
+                validateImage: (file) => {
+                    // Check file size (limit to 2MB)
+                    if (file.size > 2 * 1024 * 1024) {
+                        throw new Error('Image size should be less than 2MB');
+                    }
+                    
+                    // Check file type
+                    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                    if (!validTypes.includes(file.type)) {
+                        throw new Error('Unsupported image format. Use JPEG, PNG, GIF, or WebP');
+                    }
+                    
+                    return true;
+                },
+                
+                compressImage: async (file, maxWidth = 1200, quality = 0.8) => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(file);
+                        reader.onload = (event) => {
+                            const img = new Image();
+                            img.src = event.target.result;
+                            
+                            img.onload = () => {
+                                // Skip compression for small images
+                                if (img.width <= maxWidth) {
+                                    resolve(event.target.result);
+                                    return;
+                                }
+                                
+                                const canvas = document.createElement('canvas');
+                                const ratio = maxWidth / img.width;
+                                canvas.width = maxWidth;
+                                canvas.height = img.height * ratio;
+                                
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                
+                                // Get data URL with quality setting
+                                try {
+                                    const dataUrl = canvas.toDataURL(file.type, quality);
+                                    resolve(dataUrl);
+                                } catch (e) {
+                                    // If compression fails, return original
+                                    console.error('Image compression failed, using original', e);
+                                    resolve(event.target.result);
+                                }
+                            };
+                            
+                            img.onerror = (error) => {
+                                reject(new Error('Error loading image for compression'));
+                            };
+                        };
+                        
+                        reader.onerror = (error) => {
+                            reject(error);
+                        };
+                    });
+                },
+                
+                showImageModal: (imageUrl) => {
+                    elements.largeImage.src = imageUrl;
+                    utils.showElement(elements.imageModal);
+                },
+                
+                getNoteColorClass: (color) => {
+                    const colorClasses = {
+                        default: 'bg-black dark:bg-gray-800',
+                        blue: 'bg-blue-800 dark:bg-blue-900',
+                        green: 'bg-green-800 dark:bg-green-900',
+                        yellow: 'bg-yellow-800 dark:bg-yellow-900',
+                        red: 'bg-red-800 dark:bg-red-900',
+                        purple: 'bg-purple-800 dark:bg-purple-900'
+                    };
+                    
+                    return colorClasses[color] || colorClasses.default;
+                },
+                
+                downloadJSON: (filename, data) => {
+                    const blob = new Blob([data], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Show confirmation with instructions
+                    utils.showConfirmation(
+                        `Your data is ready for export.\n\n`+
+                        `Due to browser security restrictions, the file cannot be automatically downloaded.\n\n`+
+                        `Please right-click on the 'Save Data' button that will appear and select 'Save link as...' to save your data.`,
+                        () => {
+                            // Create a temporary anchor with the download URL
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = filename;
+                            a.textContent = 'Save Data';
+                            a.className = 'primary-button px-4 py-2 rounded block w-full text-center mt-4';
+                            a.style.textDecoration = 'none';
+                            
+                            // Replace the confirmation buttons with the download link
+                            const buttonContainer = elements.confirmBtn.parentElement;
+                            buttonContainer.innerHTML = '';
+                            buttonContainer.appendChild(a);
+                        }
+                    );
+                }
+            };
+
+            // UI Components
+            const uiComponents = {
+                createRoomItem: (room) => {
+                    const roomElement = document.createElement('div');
+                    roomElement.className = `room-item rounded p-2 cursor-pointer flex justify-between items-center hover:bg-gray-200 dark:hover:bg-gray-700 ${room.id === state.currentRoomId ? 'active' : ''}`;
+                    roomElement.dataset.id = room.id;
+                    
+                    const nameElement = document.createElement('span');
+                    nameElement.textContent = room.name;
+                    roomElement.appendChild(nameElement);
+                    
+                    roomElement.addEventListener('click', () => {
+                        // Update UI to show room is selected
+                        document.querySelectorAll('.room-item').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        roomElement.classList.add('active');
+                        
+                        // Load room data
+                        state.currentRoomId = room.id;
+                        appController.loadRoom(room.id);
+                        
+                        // Close sidebar on mobile
+                        if (window.innerWidth < 768) {
+                            elements.sidebar.classList.remove('open');
+                            elements.sidebarOverlay.classList.remove('open');
+                        }
+                    });
+                    
+                    return roomElement;
+                },
+                
+                createItemCard: (item) => {
+                    const card = document.createElement('div');
+                    card.className = 'border theme-border rounded p-4 hover:bg-gray-100 dark:hover:bg-gray-700';
+                    card.dataset.id = item.id;
+                    
+                    const dateStr = item.purchaseDate ? `<div class="text-sm text-gray-500 dark:text-gray-400">Purchased: ${utils.formatDate(item.purchaseDate)}</div>` : '';
+                    const priceStr = item.price ? `<div class="font-semibold">${utils.formatPrice(item.price)}</div>` : '';
+                    
+                    // Determine if we need to show an image
+                    let imageHtml = '';
+                    if (item.imageData) {
+                        imageHtml = `
+                            <div class="mr-3">
+                                <img src="${item.imageData}" alt="${item.name}" class="item-image cursor-pointer item-photo">
+                            </div>
+                        `;
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="flex">
+                            ${imageHtml}
+                            <div class="flex-1">
+                                <div class="flex justify-between">
+                                    <div>
+                                        <div class="font-medium text-lg">${item.name}</div>
+                                        ${dateStr}
+                                        <div class="text-sm mt-1">${item.description || ''}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        ${priceStr}
+                                        <div class="flex mt-2">
+                                            <button class="edit-item-btn p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 mr-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                            <button class="delete-item-btn p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add event listeners for image
+                    const imageElement = card.querySelector('.item-photo');
+                    if (imageElement) {
+                        imageElement.addEventListener('click', () => {
+                            utils.showImageModal(item.imageData);
+                        });
+                    }
+                    
+                    // Add event listeners for buttons
+                    card.querySelector('.edit-item-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        appController.showEditItemModal(item.id);
+                    });
+                    
+                    card.querySelector('.delete-item-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        utils.showConfirmation(`Are you sure you want to delete "${item.name}"?`, () => {
+                            db.deleteItem(item.id);
+                            appController.loadItems();
+                            utils.showToast(`Item "${item.name}" deleted successfully`);
+                        });
+                    });
+                    
+                    return card;
+                },
+                
+                createTaskCard: (task) => {
+                    const card = document.createElement('div');
+                    card.className = 'border theme-border rounded p-4 hover:bg-gray-100 dark:hover:bg-gray-700';
+                    card.dataset.id = task.id;
+                    
+                    // Priority class
+                    let priorityClass = 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+                    if (task.priority === 'high') {
+                        priorityClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+                    } else if (task.priority === 'medium') {
+                        priorityClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+                    } else if (task.priority === 'low') {
+                        priorityClass = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+                    }
+                    
+                    const dateStr = task.dueDate ? `<div class="text-sm">Due: ${utils.formatDate(task.dueDate)}</div>` : '';
+                    
+                    card.innerHTML = `
+                        <div class="flex items-start">
+                            <div class="mr-3">
+                                <input type="checkbox" class="task-checkbox w-5 h-5 cursor-pointer" ${task.completed ? 'checked' : ''}>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex justify-between">
+                                    <div>
+                                        <div class="font-medium text-lg ${task.completed ? 'line-through text-gray-500 dark:text-gray-400' : ''}">${task.name}</div>
+                                        ${dateStr}
+                                        <div class="text-sm mt-1">${task.description || ''}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="px-2 py-1 rounded text-sm ${priorityClass}">${task.priority}</span>
+                                        <div class="flex mt-2">
+                                            <button class="edit-task-btn p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 mr-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                            <button class="delete-task-btn p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add event listeners
+                    card.querySelector('.task-checkbox').addEventListener('change', (e) => {
+                        e.stopPropagation();
+                        
+                        // Update task completion status
+                        task.completed = e.target.checked;
+                        db.saveTask(task);
+                        
+                        // Update UI
+                        const title = card.querySelector('.font-medium');
+                        if (task.completed) {
+                            title.classList.add('line-through', 'text-gray-500', 'dark:text-gray-400');
+                        } else {
+                            title.classList.remove('line-through', 'text-gray-500', 'dark:text-gray-400');
+                        }
+                        
+                        utils.showToast(`Task "${task.name}" marked as ${task.completed ? 'completed' : 'active'}`);
+                    });
+                    
+                    card.querySelector('.edit-task-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        appController.showEditTaskModal(task.id);
+                    });
+                    
+                    card.querySelector('.delete-task-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        utils.showConfirmation(`Are you sure you want to delete task "${task.name}"?`, () => {
+                            db.deleteTask(task.id);
+                            appController.loadTasks();
+                            utils.showToast(`Task "${task.name}" deleted successfully`);
+                        });
+                    });
+                    
+                    return card;
+                },
+                
+                createNoteCard: (note) => {
+                    const card = document.createElement('div');
+                    const colorClass = utils.getNoteColorClass(note.color || 'default');
+                    card.className = `border theme-border rounded p-4 ${colorClass} hover:shadow transition-shadow`;
+                    card.dataset.id = note.id;
+                    
+                    // Format dates
+                    const createdAt = note.createdAt ? utils.formatDateTime(note.createdAt) : 'Unknown';
+                    const updatedAt = note.updatedAt ? utils.formatDateTime(note.updatedAt) : createdAt;
+                    
+                    // Convert line breaks to <br> for display
+                    const formattedContent = note.content.replace(/\n/g, '<br>');
+                    
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <h3 class="font-medium text-lg">${note.title}</h3>
+                            <div class="flex">
+                                <button class="edit-note-btn p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 mr-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                                <button class="delete-note-btn p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="note-content my-3 overflow-hidden" style="max-height: 200px;">${formattedContent}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            ${note.updatedAt ? `Updated: ${updatedAt}` : `Created: ${createdAt}`}
+                        </div>
+                    `;
+                    
+                    // Add event listeners
+                    card.querySelector('.edit-note-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        appController.showEditNoteModal(note.id);
+                    });
+                    
+                    card.querySelector('.delete-note-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        utils.showConfirmation(`Are you sure you want to delete note "${note.title}"?`, () => {
+                            db.deleteNote(note.id);
+                            appController.loadNotes();
+                            utils.showToast(`Note "${note.title}" deleted successfully`);
+                        });
+                    });
+                    
+                    return card;
+                }
+            };
+
+            // App Controller
+            const appController = {
+                init: function() {
+                    // Setup event listeners
+                    this.initEventListeners();
+                    
+                    // Load rooms
+                    this.renderRooms();
+                    
+                    // Check if there are any rooms
+                    const rooms = db.getRooms();
+                    if (rooms.length > 0) {
+                        // Load the first room
+                        state.currentRoomId = rooms[0].id;
+                        this.loadRoom(rooms[0].id);
+                    } else {
+                        // Show welcome screen
+                        utils.showElement(elements.noRoomSelected);
+                        utils.hideElement(elements.roomContent);
+                    }
+                },
+                
+                initEventListeners: function() {
+                    // Mobile menu toggle
+                    elements.menuToggle.addEventListener('click', () => {
+                        elements.sidebar.classList.toggle('open');
+                        elements.sidebarOverlay.classList.toggle('open');
+                    });
+                    
+                    elements.sidebarOverlay.addEventListener('click', () => {
+                        elements.sidebar.classList.remove('open');
+                        elements.sidebarOverlay.classList.remove('open');
+                    });
+                    
+                    // Tab navigation
+                    elements.tabButtons.forEach(button => {
+                        button.addEventListener('click', () => {
+                            // Update active tab button
+                            elements.tabButtons.forEach(btn => btn.classList.remove('active'));
+                            button.classList.add('active');
+                            
+                            // Show selected tab content
+                            const tabId = button.dataset.tab;
+                            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+                            document.getElementById(`${tabId}Tab`).classList.remove('hidden');
+                            
+                            // Load specific tab content if needed
+                            if(tabId === 'notes') {
+                                this.loadNotes();
+                            }
+                        });
+                    });
+                    
+                    // Room buttons
+                    elements.addRoomBtn.addEventListener('click', () => this.showAddRoomModal());
+                    elements.welcomeAddRoomBtn.addEventListener('click', () => this.showAddRoomModal());
+                    elements.editRoomBtn.addEventListener('click', () => this.showEditRoomModal());
+                    elements.deleteRoomBtn.addEventListener('click', () => {
+                        utils.showConfirmation(`Are you sure you want to delete this room and all its contents? This action cannot be undone.`, () => {
+                            // Get room name for the toast message
+                            const rooms = db.getRooms();
+                            const room = rooms.find(r => r.id === state.currentRoomId);
+                            const roomName = room ? room.name : 'room';
+                            
+                            // Delete the room
+                            db.deleteRoom(state.currentRoomId);
+                            
+                            // Update rooms list
+                            const updatedRooms = db.getRooms();
+                            
+                            // Clear current room selection
+                            state.currentRoomId = null;
+                            
+                            // Update UI
+                            this.renderRooms();
+                            
+                            if (updatedRooms.length === 0) {
+                                utils.showElement(elements.noRoomSelected);
+                                utils.hideElement(elements.roomContent);
+                            } else {
+                                // Load the first room
+                                state.currentRoomId = updatedRooms[0].id;
+                                this.loadRoom(updatedRooms[0].id);
+                            }
+                            
+                            utils.showToast(`Room "${roomName}" deleted successfully`);
+                        });
+                    });
+                    
+                    // Action buttons
+                    elements.addItemBtn.addEventListener('click', () => this.showAddItemModal());
+                    elements.addTaskBtn.addEventListener('click', () => this.showAddTaskModal());
+                    elements.addNoteBtn.addEventListener('click', () => this.showAddNoteModal());
+                    
+                    // Room Photo handling
+                    elements.roomPhoto.addEventListener('change', async (e) => {
+                        if (e.target.files.length > 0) {
+                            try {
+                                const file = e.target.files[0];
+                                utils.validateImage(file);
+                                
+                                // Show loading indicator
+                                utils.showElement(elements.roomPhotoLoading);
+                                utils.showElement(elements.roomPhotoPreviewContainer);
+                                
+                                // Compress and process the image
+                                const imageData = await utils.compressImage(file);
+                                state.roomPhotoData = imageData;
+                                
+                                // Show preview
+                                elements.roomPhotoPreview.src = imageData;
+                                utils.hideElement(elements.roomPhotoLoading);
+                                
+                                console.log('Room photo processed successfully');
+                            } catch (error) {
+                                utils.hideElement(elements.roomPhotoPreviewContainer);
+                                utils.hideElement(elements.roomPhotoLoading);
+                                console.error('Error processing room photo:', error);
+                                utils.showToast('Error processing image: ' + error.message, true);
+                                
+                                // Reset the file input
+                                elements.roomPhoto.value = '';
+                            }
+                        }
+                    });
+                    
+                    elements.removeRoomPhotoBtn.addEventListener('click', () => {
+                        state.roomPhotoData = null;
+                        elements.roomPhoto.value = '';
+                        utils.hideElement(elements.roomPhotoPreviewContainer);
+                    });
+                    
+                    // Item Photo handling
+                    elements.itemPhoto.addEventListener('change', async (e) => {
+                        if (e.target.files.length > 0) {
+                            try {
+                                const file = e.target.files[0];
+                                utils.validateImage(file);
+                                
+                                // Show loading indicator
+                                utils.showElement(elements.itemPhotoLoading);
+                                utils.showElement(elements.itemPhotoPreviewContainer);
+                                
+                                // Compress and process the image
+                                const imageData = await utils.compressImage(file);
+                                state.itemPhotoData = imageData;
+                                
+                                // Show preview
+                                elements.itemPhotoPreview.src = imageData;
+                                utils.hideElement(elements.itemPhotoLoading);
+                                
+                                console.log('Item photo processed successfully');
+                            } catch (error) {
+                                utils.hideElement(elements.itemPhotoPreviewContainer);
+                                utils.hideElement(elements.itemPhotoLoading);
+                                console.error('Error processing item photo:', error);
+                                utils.showToast('Error processing image: ' + error.message, true);
+                                
+                                // Reset the file input
+                                elements.itemPhoto.value = '';
+                            }
+                        }
+                    });
+                    
+                    elements.removeItemPhotoBtn.addEventListener('click', () => {
+                        state.itemPhotoData = null;
+                        elements.itemPhoto.value = '';
+                        utils.hideElement(elements.itemPhotoPreviewContainer);
+                    });
+                    
+                    // Room Form
+                    elements.roomForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        
+                        const roomName = elements.roomName.value.trim();
+                        const roomDescription = elements.roomDescription.value.trim();
+                        
+                        if (!roomName) return;
+                        
+                        try {
+                            if (state.editMode) {
+                                // Update existing room
+                                const rooms = db.getRooms();
+                                const room = rooms.find(r => r.id === state.currentRoomId);
+                                
+                                if (room) {
+                                    room.name = roomName;
+                                    room.description = roomDescription;
+                                    
+                                    // Update photo only if changed
+                                    if (state.roomPhotoData !== undefined) {
+                                        room.imageData = state.roomPhotoData;
+                                    }
+                                    
+                                    room.updatedAt = new Date().toISOString();
+                                    
+                                    db.saveRoom(room);
+                                    
+                                    // Update UI
+                                    elements.roomTitle.textContent = roomName;
+                                    
+                                    // Update room image in header
+                                    if (room.imageData) {
+                                        elements.roomImage.src = room.imageData;
+                                        utils.showElement(elements.roomImageContainer);
+                                    } else {
+                                        utils.hideElement(elements.roomImageContainer);
+                                    }
+                                    
+                                    utils.showToast(`Room "${roomName}" updated successfully`);
+                                }
+                            } else {
+                                // Create new room
+                                const newRoom = {
+                                    id: utils.generateId(),
+                                    name: roomName,
+                                    description: roomDescription,
+                                    imageData: state.roomPhotoData || null,
+                                    createdAt: new Date().toISOString()
+                                };
+                                
+                                db.saveRoom(newRoom);
+                                
+                                // Update state
+                                state.currentRoomId = newRoom.id;
+                                
+                                // Show room content
+                                utils.hideElement(elements.noRoomSelected);
+                                utils.showElement(elements.roomContent);
+                                elements.roomTitle.textContent = roomName;
+                                
+                                // Show room image if available
+                                if (newRoom.imageData) {
+                                    elements.roomImage.src = newRoom.imageData;
+                                    utils.showElement(elements.roomImageContainer);
+                                } else {
+                                    utils.hideElement(elements.roomImageContainer);
+                                }
+                                
+                                // Clear lists
+                                utils.clearElement(elements.itemsList);
+                                utils.clearElement(elements.tasksList);
+                                utils.clearElement(elements.notesList);
+                                
+                                utils.showToast(`Room "${roomName}" created successfully`);
+                            }
+                            
+                            // Update rooms list
+                            this.renderRooms();
+                            
+                            // Close modal
+                            utils.hideElement(elements.roomModal);
+                            
+                            // Reset form and state
+                            elements.roomForm.reset();
+                            state.roomPhotoData = undefined;
+                            utils.hideElement(elements.roomPhotoPreviewContainer);
+                            state.editMode = false;
+                            
+                        } catch (error) {
+                            console.error('Error saving room:', error);
+                            utils.showToast('Error saving room: ' + error.message, true);
+                        }
+                    });
+                    
+                    // Item Form
+                    elements.itemForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        
+                        const itemName = elements.itemName.value.trim();
+                        const itemDescription = elements.itemDescription.value.trim();
+                        const itemPrice = elements.itemPrice.value ? parseFloat(elements.itemPrice.value) : null;
+                        const itemPurchaseDate = elements.itemPurchaseDate.value || null;
+                        
+                        if (!itemName) return;
+                        
+                        try {
+                            if (state.editMode) {
+                                // Update existing item
+                                const items = db.getItems();
+                                const item = items.find(i => i.id === state.currentItemId);
+                                
+                                if (item) {
+                                    item.name = itemName;
+                                    item.description = itemDescription;
+                                    item.price = itemPrice;
+                                    item.purchaseDate = itemPurchaseDate;
+                                    
+                                    // Update photo only if changed
+                                    if (state.itemPhotoData !== undefined) {
+                                        item.imageData = state.itemPhotoData;
+                                    }
+                                    
+                                    item.updatedAt = new Date().toISOString();
+                                    
+                                    db.saveItem(item);
+                                    utils.showToast(`Item "${itemName}" updated successfully`);
+                                }
+                            } else {
+                                // Create new item
+                                const newItem = {
+                                    id: utils.generateId(),
+                                    roomId: state.currentRoomId,
+                                    name: itemName,
+                                    description: itemDescription,
+                                    price: itemPrice,
+                                    purchaseDate: itemPurchaseDate,
+                                    imageData: state.itemPhotoData || null,
+                                    createdAt: new Date().toISOString()
+                                };
+                                
+                                db.saveItem(newItem);
+                                utils.showToast(`Item "${itemName}" added successfully`);
+                            }
+                            
+                            // Update items list
+                            this.loadItems();
+                            
+                            // Close modal
+                            utils.hideElement(elements.itemModal);
+                            
+                            // Reset form and state
+                            elements.itemForm.reset();
+                            state.itemPhotoData = undefined;
+                            utils.hideElement(elements.itemPhotoPreviewContainer);
+                            state.editMode = false;
+                            
+                        } catch (error) {
+                            console.error('Error saving item:', error);
+                            utils.showToast('Error saving item: ' + error.message, true);
+                        }
+                    });
+                    
+                    // Task Form
+                    elements.taskForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        
+                        const taskName = elements.taskName.value.trim();
+                        const taskDescription = elements.taskDescription.value.trim();
+                        const taskDueDate = elements.taskDueDate.value || null;
+                        const taskPriority = elements.taskPriority.value;
+                        const taskCompleted = elements.taskCompleted.checked;
+                        
+                        if (!taskName) return;
+                        
+                        try {
+                            if (state.editMode) {
+                                // Update existing task
+                                const tasks = db.getTasks();
+                                const task = tasks.find(t => t.id === state.currentTaskId);
+                                
+                                if (task) {
+                                    task.name = taskName;
+                                    task.description = taskDescription;
+                                    task.dueDate = taskDueDate;
+                                    task.priority = taskPriority;
+                                    task.completed = taskCompleted;
+                                    task.updatedAt = new Date().toISOString();
+                                    
+                                    db.saveTask(task);
+                                    utils.showToast(`Task "${taskName}" updated successfully`);
+                                }
+                            } else {
+                                // Create new task
+                                const newTask = {
+                                    id: utils.generateId(),
+                                    roomId: state.currentRoomId,
+                                    name: taskName,
+                                    description: taskDescription,
+                                    dueDate: taskDueDate,
+                                    priority: taskPriority,
+                                    completed: taskCompleted,
+                                    createdAt: new Date().toISOString()
+                                };
+                                
+                                db.saveTask(newTask);
+                                utils.showToast(`Task "${taskName}" added successfully`);
+                            }
+                            
+                            // Update tasks list
+                            this.loadTasks();
+                            
+                            // Close modal
+                            utils.hideElement(elements.taskModal);
+                            
+                            // Reset form
+                            elements.taskForm.reset();
+                            state.editMode = false;
+                            
+                        } catch (error) {
+                            console.error('Error saving task:', error);
+                            utils.showToast('Error saving task: ' + error.message, true);
+                        }
+                    });
+                    
+                    // Note Form
+                    elements.noteForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        
+                        const noteTitle = elements.noteTitle.value.trim();
+                        const noteContent = elements.noteContent.value.trim();
+                        const noteColor = elements.noteColor.value;
+                        
+                        if (!noteTitle || !noteContent) return;
+                        
+                        try {
+                            if (state.editMode) {
+                                // Update existing note
+                                const notes = db.getNotes();
+                                const note = notes.find(n => n.id === state.currentNoteId);
+                                
+                                if (note) {
+                                    note.title = noteTitle;
+                                    note.content = noteContent;
+                                    note.color = noteColor;
+                                    note.updatedAt = new Date().toISOString();
+                                    
+                                    db.saveNote(note);
+                                    utils.showToast(`Note "${noteTitle}" updated successfully`);
+                                }
+                            } else {
+                                // Create new note
+                                const newNote = {
+                                    id: utils.generateId(),
+                                    roomId: state.currentRoomId,
+                                    title: noteTitle,
+                                    content: noteContent,
+                                    color: noteColor,
+                                    createdAt: new Date().toISOString()
+                                };
+                                
+                                db.saveNote(newNote);
+                                utils.showToast(`Note "${noteTitle}" added successfully`);
+                            }
+                            
+                            // Update notes list
+                            this.loadNotes();
+                            
+                            // Close modal
+                            utils.hideElement(elements.noteModal);
+                            
+                            // Reset form
+                            elements.noteForm.reset();
+                            elements.noteColor.value = 'default';
+                            state.editMode = false;
+                            
+                        } catch (error) {
+                            console.error('Error saving note:', error);
+                            utils.showToast('Error saving note: ' + error.message, true);
+                        }
+                    });
+                    
+                    // Cancel buttons
+                    elements.cancelRoomBtn.addEventListener('click', () => {
+                        utils.hideElement(elements.roomModal);
+                        elements.roomForm.reset();
+                        state.roomPhotoData = undefined;
+                        utils.hideElement(elements.roomPhotoPreviewContainer);
+                        state.editMode = false;
+                    });
+                    
+                    elements.cancelItemBtn.addEventListener('click', () => {
+                        utils.hideElement(elements.itemModal);
+                        elements.itemForm.reset();
+                        state.itemPhotoData = undefined;
+                        utils.hideElement(elements.itemPhotoPreviewContainer);
+                        state.editMode = false;
+                    });
+                    
+                    elements.cancelTaskBtn.addEventListener('click', () => {
+                        utils.hideElement(elements.taskModal);
+                        elements.taskForm.reset();
+                        state.editMode = false;
+                    });
+                    
+                    elements.cancelNoteBtn.addEventListener('click', () => {
+                        utils.hideElement(elements.noteModal);
+                        elements.noteForm.reset();
+                        elements.noteColor.value = 'default';
+                        state.editMode = false;
+                    });
+                    
+                    // Close image modal
+                    elements.closeImageBtn.addEventListener('click', () => {
+                        utils.hideElement(elements.imageModal);
+                    });
+                    
+                    elements.imageModal.addEventListener('click', (e) => {
+                        if (e.target === elements.imageModal) {
+                            utils.hideElement(elements.imageModal);
+                        }
+                    });
+                    
+                    // Confirmation Modal
+                    elements.cancelConfirmationBtn.addEventListener('click', () => {
+                        utils.hideElement(elements.confirmationModal);
+                        state.confirmCallback = null;
+                    });
+                    
+                    elements.confirmBtn.addEventListener('click', () => {
+                        if (state.confirmCallback) {
+                            state.confirmCallback();
+                        }
+                        utils.hideElement(elements.confirmationModal);
+                        state.confirmCallback = null;
+                    });
+                    
+                    // Export/Import buttons
+                    elements.exportDataBtn.addEventListener('click', () => {
+                        const exportData = db.exportData();
+                        const filename = `home_inventory_export_${new Date().toISOString().split('T')[0]}.json`;
+                        utils.downloadJSON(filename, exportData);
+                    });
+                    
+                    elements.importDataBtn.addEventListener('click', () => {
+                        elements.importFileInput.click();
+                    });
+                    
+                    elements.importFileInput.addEventListener('change', (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const fileData = e.target.result;
+                            
+                            utils.showConfirmation(
+                                `Importing data will replace all existing data. This cannot be undone. Are you sure you want to proceed?`,
+                                () => {
+                                    try {
+                                        db.importData(fileData);
+                                        utils.showToast('Data imported successfully!');
+                                        
+                                        // Reload the app
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 1000);
+                                    } catch (error) {
+                                        utils.showToast(`Error importing data: ${error.message}`, true);
+                                    }
+                                }
+                            );
+                        };
+                        
+                        reader.readAsText(file);
+                    });
+                },
+                
+                renderRooms: function() {
+                    utils.clearElement(elements.roomsContainer);
+                    
+                    const rooms = db.getRooms();
+                    
+                    if (rooms.length === 0) {
+                        elements.roomsContainer.innerHTML = `
+                            <div class="flex items-center justify-center h-32 text-gray-500">
+                                <p>No rooms added yet.</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // Sort rooms alphabetically
+                    const sortedRooms = [...rooms].sort((a, b) => a.name.localeCompare(b.name));
+                    
+                    sortedRooms.forEach(room => {
+                        const roomElement = uiComponents.createRoomItem(room);
+                        elements.roomsContainer.appendChild(roomElement);
+                    });
+                },
+                
+                loadRoom: function(roomId) {
+                    // Get room details
+                    const rooms = db.getRooms();
+                    const room = rooms.find(r => r.id === roomId);
+                    
+                    if (!room) {
+                        console.error('Room not found:', roomId);
+                        return;
+                    }
+                    
+                    // Update state
+                    state.currentRoomId = roomId;
+                    
+                    // Update UI
+                    elements.roomTitle.textContent = room.name;
+                    
+                    // Show/hide room image
+                    if (room.imageData) {
+                        elements.roomImage.src = room.imageData;
+                        utils.showElement(elements.roomImageContainer);
+                    } else {
+                        utils.hideElement(elements.roomImageContainer);
+                    }
+                    
+                    // Show room content, hide welcome screen
+                    utils.hideElement(elements.noRoomSelected);
+                    utils.showElement(elements.roomContent);
+                    
+                    // Select the items tab by default
+                    elements.tabButtons[0].click();
+                    
+                    // Load items and tasks
+                    this.loadItems();
+                    this.loadTasks();
+                    this.loadNotes();
+                },
+                
+                loadItems: function() {
+                    utils.clearElement(elements.itemsList);
+                    
+                    const items = db.getItemsByRoom(state.currentRoomId);
+                    
+                    if (items.length === 0) {
+                        elements.itemsList.innerHTML = `
+                            <div class="text-center py-8 text-gray-500">
+                                <p>No items added to this room yet.</p>
+                                <button id="emptyAddItemBtn" class="primary-button px-4 py-2 rounded mt-4">Add Your First Item</button>
+                            </div>
+                        `;
+                        
+                        document.getElementById('emptyAddItemBtn').addEventListener('click', () => {
+                            this.showAddItemModal();
+                        });
+                        
+                        return;
+                    }
+                    
+                    // Sort items by name
+                    const sortedItems = [...items].sort((a, b) => a.name.localeCompare(b.name));
+                    
+                    sortedItems.forEach(item => {
+                        const itemElement = uiComponents.createItemCard(item);
+                        elements.itemsList.appendChild(itemElement);
+                    });
+                },
+                
+                loadTasks: function() {
+                    utils.clearElement(elements.tasksList);
+                    
+                    const tasks = db.getTasksByRoom(state.currentRoomId);
+                    
+                    if (tasks.length === 0) {
+                        elements.tasksList.innerHTML = `
+                            <div class="text-center py-8 text-gray-500">
+                                <p>No tasks added to this room yet.</p>
+                                <button id="emptyAddTaskBtn" class="primary-button px-4 py-2 rounded mt-4">Add Your First Task</button>
+                            </div>
+                        `;
+                        
+                        document.getElementById('emptyAddTaskBtn').addEventListener('click', () => {
+                            this.showAddTaskModal();
+                        });
+                        
+                        return;
+                    }
+                    
+                    // Sort tasks: incomplete first (by priority), then completed (by name)
+                    const sortedTasks = [...tasks].sort((a, b) => {
+                        // First by completion status
+                        if (a.completed !== b.completed) {
+                            return a.completed ? 1 : -1;
+                        }
+                        
+                        // Then by priority (for incomplete tasks)
+                        if (!a.completed) {
+                            const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
+                            return priorityOrder[a.priority] - priorityOrder[b.priority];
+                        }
+                        
+                        // Then by name
+                        return a.name.localeCompare(b.name);
+                    });
+                    
+                    sortedTasks.forEach(task => {
+                        const taskElement = uiComponents.createTaskCard(task);
+                        elements.tasksList.appendChild(taskElement);
+                    });
+                },
+                
+                loadNotes: function() {
+                    utils.clearElement(elements.notesList);
+                    
+                    const notes = db.getNotesByRoom(state.currentRoomId);
+                    
+                    if (notes.length === 0) {
+                        elements.notesList.innerHTML = `
+                            <div class="text-center py-8 text-gray-500">
+                                <p>No notes added to this room yet.</p>
+                                <button id="emptyAddNoteBtn" class="primary-button px-4 py-2 rounded mt-4">Add Your First Note</button>
+                            </div>
+                        `;
+                        
+                        document.getElementById('emptyAddNoteBtn').addEventListener('click', () => {
+                            this.showAddNoteModal();
+                        });
+                        
+                        return;
+                    }
+                    
+                    // Sort notes by date (newest first)
+                    const sortedNotes = [...notes].sort((a, b) => {
+                        const dateA = a.updatedAt || a.createdAt;
+                        const dateB = b.updatedAt || b.createdAt;
+                        return new Date(dateB) - new Date(dateA);
+                    });
+                    
+                    sortedNotes.forEach(note => {
+                        const noteElement = uiComponents.createNoteCard(note);
+                        elements.notesList.appendChild(noteElement);
+                    });
+                },
+                
+                showAddRoomModal: function() {
+                    elements.roomModalTitle.textContent = 'Add New Room';
+                    elements.roomForm.reset();
+                    state.roomPhotoData = null;
+                    utils.hideElement(elements.roomPhotoPreviewContainer);
+                    state.editMode = false;
+                    utils.showElement(elements.roomModal);
+                },
+                
+                showEditRoomModal: function() {
+                    const rooms = db.getRooms();
+                    const room = rooms.find(r => r.id === state.currentRoomId);
+                    
+                    if (!room) {
+                        utils.showToast('Error: Room not found', true);
+                        return;
+                    }
+                    
+                    elements.roomModalTitle.textContent = 'Edit Room';
+                    elements.roomName.value = room.name;
+                    elements.roomDescription.value = room.description || '';
+                    
+                    // Reset photo state
+                    state.roomPhotoData = undefined;
+                    
+                    // Show existing photo if available
+                    if (room.imageData) {
+                        elements.roomPhotoPreview.src = room.imageData;
+                        utils.showElement(elements.roomPhotoPreviewContainer);
+                    } else {
+                        utils.hideElement(elements.roomPhotoPreviewContainer);
+                    }
+                    
+                    state.editMode = true;
+                    utils.showElement(elements.roomModal);
+                },
+                
+                showAddItemModal: function() {
+                    elements.itemModalTitle.textContent = 'Add New Item';
+                    elements.itemForm.reset();
+                    state.itemPhotoData = null;
+                    utils.hideElement(elements.itemPhotoPreviewContainer);
+                    state.editMode = false;
+                    utils.showElement(elements.itemModal);
+                },
+                
+                showEditItemModal: function(itemId) {
+                    const items = db.getItems();
+                    const item = items.find(i => i.id === itemId);
+                    
+                    if (!item) {
+                        utils.showToast('Error: Item not found', true);
+                        return;
+                    }
+                    
+                    state.currentItemId = itemId;
+                    elements.itemModalTitle.textContent = 'Edit Item';
+                    
+                    elements.itemName.value = item.name;
+                    elements.itemDescription.value = item.description || '';
+                    elements.itemPrice.value = item.price || '';
+                    elements.itemPurchaseDate.value = item.purchaseDate || '';
+                    
+                    // Reset photo state
+                    state.itemPhotoData = undefined;
+                    
+                    // Show existing photo if available
+                    if (item.imageData) {
+                        elements.itemPhotoPreview.src = item.imageData;
+                        utils.showElement(elements.itemPhotoPreviewContainer);
+                    } else {
+                        utils.hideElement(elements.itemPhotoPreviewContainer);
+                    }
+                    
+                    state.editMode = true;
+                    utils.showElement(elements.itemModal);
+                },
+                
+                showAddTaskModal: function() {
+                    elements.taskModalTitle.textContent = 'Add New Task';
+                    elements.taskForm.reset();
+                    elements.taskPriority.value = 'medium'; // Default priority
+                    state.editMode = false;
+                    utils.showElement(elements.taskModal);
+                },
+                
+                showEditTaskModal: function(taskId) {
+                    const tasks = db.getTasks();
+                    const task = tasks.find(t => t.id === taskId);
+                    
+                    if (!task) {
+                        utils.showToast('Error: Task not found', true);
+                        return;
+                    }
+                    
+                    state.currentTaskId = taskId;
+                    elements.taskModalTitle.textContent = 'Edit Task';
+                    
+                    elements.taskName.value = task.name;
+                    elements.taskDescription.value = task.description || '';
+                    elements.taskDueDate.value = task.dueDate || '';
+                    elements.taskPriority.value = task.priority || 'medium';
+                    elements.taskCompleted.checked = task.completed || false;
+                    
+                    state.editMode = true;
+                    utils.showElement(elements.taskModal);
+                },
+                
+                showAddNoteModal: function() {
+                    elements.noteModalTitle.textContent = 'Add New Note';
+                    elements.noteForm.reset();
+                    elements.noteColor.value = 'default'; // Default color
+                    state.editMode = false;
+                    utils.showElement(elements.noteModal);
+                },
+                
+                showEditNoteModal: function(noteId) {
+                    const notes = db.getNotes();
+                    const note = notes.find(n => n.id === noteId);
+                    
+                    if (!note) {
+                        utils.showToast('Error: Note not found', true);
+                        return;
+                    }
+                    
+                    state.currentNoteId = noteId;
+                    elements.noteModalTitle.textContent = 'Edit Note';
+                    
+                    elements.noteTitle.value = note.title;
+                    elements.noteContent.value = note.content;
+                    elements.noteColor.value = note.color || 'default';
+                    
+                    state.editMode = true;
+                    utils.showElement(elements.noteModal);
+                }
+            };
+            
+            // Initialize the app
+            appController.init();
+        });
+    </script>
+</body>
+</html>
